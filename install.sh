@@ -31,7 +31,7 @@ banner() {
   / _ \__  __ (_) __| | ___
  | | | \ \/ / | |/ _` |/ _ \
  | |_| |>  <  | | (_| |  __/
-  \___//_/\_\ |_|\__,_|\___|
+  \___//_/\_\ |_|\__,_|\___|  
 
   The Oxide Programming Language
 EOF
@@ -148,7 +148,12 @@ build_from_source() {
   # Pass BUILDDIR as a Make command-line argument (highest priority — overrides
   # Makefile assignments, unlike environment variables which do not).
   local build_dir="$INSTALL_DIR/build"
-  make release BUILDDIR="$build_dir" 2>&1 | grep -E '^\[|^g\+\+|^error' || true
+
+  # Build with full output. On failure, show a clear error (the compiler errors
+  # above will explain what went wrong).
+  if ! make release BUILDDIR="$build_dir"; then
+    error "Compiler build failed. See errors above."
+  fi
 
   # Locate the compiled oxc binary.
   # Prefer the directory we requested; fall back to the platform defaults
