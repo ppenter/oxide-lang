@@ -1,0 +1,17 @@
+{
+  "name": "oxide-compiler",
+  "version": "0.2.0",
+  "description": "The Oxide programming language compiler",
+  "entry": "main.ox",
+  "author": "Jarupak Srisuchat",
+  "license": "MIT",
+  "paths": {},
+  "dependencies": {},
+  "devDependencies": {},
+  "scripts": {
+    "build": "make",
+    "release": "make release",
+    "test":  "make test",
+    "clean": "make clean"
+  }
+}

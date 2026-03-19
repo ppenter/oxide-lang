@@ -1,0 +1,24 @@
+# Build artifacts
+build/
+build2/
+build3/
+build_linux/
+build_lsp/
+oxide_build/
+*.o
+*.ll
+*.out
+a.out
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+*.swp
+*.swo
+
+# Runtime
+/tmp/oxide-*.log
+node_modules/
