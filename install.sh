@@ -52,7 +52,7 @@ detect_platform() {
       ;;
     MINGW*|MSYS*|CYGWIN*)
       PLATFORM="windows"
-      warn "Native Windows detected. Recommended: use WSL2."
+      warn "Native Windows detected. It is recommended to use WSL2 for the best experience."
       warn "See: https://learn.microsoft.com/en-us/windows/wsl/install"
       ;;
     *)
@@ -64,7 +64,7 @@ detect_platform() {
     x86_64|amd64)  ARCH_NAME="x86_64" ;;
     aarch64|arm64) ARCH_NAME="aarch64" ;;
     *)
-      warn "Architecture $ARCH not officially supported. Building from source."
+      warn "Architecture $ARCH not officially supported. Will attempt to build from source."
       ARCH_NAME="$ARCH"
       ;;
   esac
@@ -145,12 +145,40 @@ build_from_source() {
   info "Building Oxide compiler (this may take ~30 seconds)..."
   cd "$src_dir"
 
-  BUILDDIR="$INSTALL_DIR/build" make release 2>&1 | grep -E '^\[|^g\+\+|^error' || true
+  # Pass BUILDDIR as a Make command-line argument (highest priority — overrides
+  # Makefile assignments, unlike environment variables which do not).
+  local build_dir="$INSTALL_DIR/build"
+  make release BUILDDIR="$build_dir" 2>&1 | grep -E '^\[|^g\+\+|^error' || true
 
+  # Locate the compiled oxc binary.
+  # Prefer the directory we requested; fall back to the platform defaults
+  # (build3/ on macOS, $HOME/oxide_build/ on Linux) in case Make ignored the override.
+  local oxc_bin=""
+  for candidate in \
+      "$build_dir/oxc" \
+      "$src_dir/build3/oxc" \
+      "$HOME/oxide_build/oxc"; do
+    if [ -f "$candidate" ]; then
+      oxc_bin="$candidate"
+      break
+    fi
+  done
+
+  if [ -z "$oxc_bin" ]; then
+    error "Build succeeded but oxc binary not found. Check the build output above."
+  fi
+
+  # Copy binaries
   mkdir -p "$INSTALL_DIR/bin"
-  cp "$INSTALL_DIR/build/oxc" "$INSTALL_DIR/bin/oxc"
-  cp "$INSTALL_DIR/build/ox"  "$INSTALL_DIR/bin/ox" 2>/dev/null || \
-    cp "$src_dir/tools/ox"    "$INSTALL_DIR/bin/ox"
+  cp "$oxc_bin" "$INSTALL_DIR/bin/oxc"
+  # ox CLI: check same directory as oxc, then fall back to tools/ox
+  local ox_bin
+  ox_bin="$(dirname "$oxc_bin")/ox"
+  if [ -f "$ox_bin" ]; then
+    cp "$ox_bin" "$INSTALL_DIR/bin/ox"
+  else
+    cp "$src_dir/tools/ox" "$INSTALL_DIR/bin/ox"
+  fi
   chmod +x "$INSTALL_DIR/bin/oxc" "$INSTALL_DIR/bin/ox"
 
   success "Oxide built from source successfully."
@@ -161,6 +189,7 @@ update_path() {
   local bin_dir="$INSTALL_DIR/bin"
   local export_line="export PATH=\"\$PATH:${bin_dir}\""
 
+  # Detect shell profile
   local shell_profiles=()
   if [ -n "${BASH_VERSION:-}" ] || [ "${SHELL:-}" = "/bin/bash" ]; then
     shell_profiles+=("$HOME/.bashrc" "$HOME/.bash_profile")
@@ -168,6 +197,7 @@ update_path() {
   if [ -n "${ZSH_VERSION:-}" ] || [ "${SHELL:-}" = "/bin/zsh" ]; then
     shell_profiles+=("$HOME/.zshrc")
   fi
+  # Fallback
   [ ${#shell_profiles[@]} -eq 0 ] && shell_profiles+=("$HOME/.profile")
 
   for profile in "${shell_profiles[@]}"; do
@@ -179,6 +209,7 @@ update_path() {
     fi
   done
 
+  # Export for current session
   export PATH="$PATH:${bin_dir}"
 }
 
@@ -198,13 +229,18 @@ print_next_steps() {
   printf "\n${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n"
   printf "${BOLD}  Oxide installed to: ${CYAN}%s${RESET}\n" "$INSTALL_DIR/bin"
   printf "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n\n"
-  printf "  Reload your shell:\n"
+  printf "  Reload your shell or run:\n"
   printf "    ${CYAN}source ~/.bashrc${RESET}   (bash)\n"
   printf "    ${CYAN}source ~/.zshrc${RESET}    (zsh)\n\n"
   printf "  Then try:\n"
   printf "    ${CYAN}ox --help${RESET}\n"
   printf "    ${CYAN}oxc --version${RESET}\n\n"
-  printf "  Documentation: ${CYAN}https://github.com/ppenter/oxide-lang${RESET}\n\n"
+  printf "  Write your first Oxide program:\n"
+  cat <<'EOF'
+    echo 'fn main() { print("Hello, Oxide!"); }' > hello.ox
+    ox run hello.ox
+EOF
+  printf "\n  Documentation: ${CYAN}https://oxide-lang.dev${RESET}\n\n"
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -212,10 +248,14 @@ main() {
   banner
   detect_platform
   check_deps
+
   mkdir -p "$INSTALL_DIR"
+
+  # Try pre-built binary first, fall back to source build
   if ! try_prebuilt 2>/dev/null; then
     build_from_source
   fi
+
   update_path
   verify
   print_next_steps
