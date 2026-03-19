@@ -2,6 +2,7 @@
 
 #include "lexer.h"
 #include <cctype>
+#include <cstdio>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -142,11 +143,14 @@ Token Lexer::scanString(int startLine, int startCol) {
       case '"':  value += '"';  advance(); break;
       case '\\': value += '\\'; advance(); break;
       case '0':  value += '\0'; advance(); break;
-      default:
-        addError(std::string("unknown escape sequence '\\') + peek() + "'",
-                 line_, col_);
+      default: {
+        char errbuf[40];
+        std::snprintf(errbuf, sizeof(errbuf), "unknown escape sequence '\\%c'",
+                      static_cast<unsigned char>(peek()));
+        addError(errbuf, line_, col_);
         value += advance();
         break;
+      }
       }
     } else {
       value += advance();
@@ -199,12 +203,15 @@ std::vector<Token> Lexer::scanStringTokens(int startLine, int startCol) {
       case '"':  segment += '"';  advance(); break;
       case '\\': segment += '\\'; advance(); break;
       case '0':  segment += '\0'; advance(); break;
-      default:
-        addError(std::string("unknown escape sequence '\\') + peek() + "'",
-                 line_, col_);
+      default: {
+        char errbuf[40];
+        std::snprintf(errbuf, sizeof(errbuf), "unknown escape sequence '\\%c'",
+                      static_cast<unsigned char>(peek()));
+        addError(errbuf, line_, col_);
         segment += advance();
         break;
       }
+      }  // end switch
       return true;
     }
     segment += advance();
@@ -317,6 +324,8 @@ TokenKind Lexer::keywordKind(const std::string& word) {
     {"continue", TokenKind::KW_CONTINUE},
     {"as",       TokenKind::KW_AS},
     {"type",     TokenKind::KW_TYPE},
+    {"enum",     TokenKind::KW_ENUM},
+    {"match",    TokenKind::KW_MATCH},
   };
   auto it = kKeywords.find(word);
   return (it != kKeywords.end()) ? it->second : TokenKind::IDENTIFIER;
